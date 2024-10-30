@@ -3,8 +3,11 @@ import Meyda from "meyda";
 import { Sun, Moon, FileDown, Play, Pause } from "lucide-react";
 import { FrequencyVisualizer } from "./../components/Visualizer";
 import { Background } from "../components/Background";
+import confetti from "canvas-confetti";
+import { Confetti } from "../components/Confetti";
 
 const KeyDetector = () => {
+  const confettiRef = useRef(null);
   const [file, setFile] = useState(null);
   const [key, setKey] = useState(null);
   const [error, setError] = useState("");
@@ -14,7 +17,7 @@ const KeyDetector = () => {
   const [meydaAnalyzer, setMeydaAnalyzer] = useState(null);
   const [chromaData, setChromaData] = useState([]); // Pour accumuler les données chroma
   const [songName, setSongName] = useState("");
-
+  const [myPath, setPath] = useState(null);
 
   const [note, setNote] = useState("");
   const [frequency, setFrequency] = useState(0);
@@ -60,8 +63,6 @@ const KeyDetector = () => {
       const nyquist = myaudio.sampleRate / 2;
       const frequency = (maxIndex / dataArray.length) * nyquist;
 
-      // Affichez la fréquence brute pour le débogage
-      console.log(`Fréquence brute: ${frequency.toFixed(2)} Hz`);
 
       // On ignore les fréquences en dessous d'un certain seuil
       if (frequency < 100) return 0; // Seuil pour éviter les bruits de fond
@@ -232,10 +233,10 @@ const KeyDetector = () => {
       const audioContext = new (window.AudioContext ||
         window.webkitAudioContext)();
       setAudioContext(audioContext);
-
+      console.log('audioFile ===> ', audioFile)
       const sourceNode = audioContext.createBufferSource();
       setSourceNode(sourceNode);
-
+      console.log('URL.createObjectURL(audioFile) ===> ', await fetch(URL.createObjectURL(audioFile)).then((response) => response.arrayBuffer()))
       const audioBuffer = await fetch(URL.createObjectURL(audioFile))
         .then((response) => response.arrayBuffer())
         .then((arrayBuffer) => audioContext.decodeAudioData(arrayBuffer));
@@ -270,17 +271,43 @@ const KeyDetector = () => {
       setMeydaAnalyzer(meydaAnalyzer);
 
       // Arrêter l'analyse une fois la lecture terminée et calculer la tonalité
-      sourceNode.onended = () => {
+      sourceNode.onended = async () => {
         meydaAnalyzer.stop();
         const averageChroma = calculateAverageChroma(chromaAccumulator);
         const keyDetected = identifyKeyFromChroma(averageChroma);
         setKey(keyDetected);
+        const f = await fetch(URL.createObjectURL(audioFile)).then((response) => response.arrayBuffer())
+        console.log('f ===> ', f)
+
+        const base64Path = arrayBufferToBase64(f);
+        addObjectToLocalStorage({
+          key: keyDetected,
+          songName: audioFile.name,
+          path: base64Path,
+          timestamp: new Date().toISOString(),
+        })
+        handleFiesta()
       };
     } catch (err) {
       setError("Erreur lors de l'analyse de la chanson.");
       console.error(err);
     }
   };
+
+  function addObjectToLocalStorage(newObject) {
+    let existingArray = JSON.parse(localStorage.getItem('myObjectArray')) || [];
+    existingArray.push(newObject);
+    localStorage.setItem('myObjectArray', JSON.stringify(existingArray));
+  }
+  function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+  }
 
   // Fonction pour calculer la moyenne des chromas
   const calculateAverageChroma = (chromaData) => {
@@ -364,6 +391,37 @@ const KeyDetector = () => {
       : keyMapMinor[bestMatchMinor.index];
   };
 
+  const handleFiesta = () => {
+    confettiRef.current?.fire({})
+    const end = Date.now() + 3 * 1000; // 3 seconds
+    const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"];
+
+    const frame = () => {
+      if (Date.now() > end) return;
+
+      confetti({
+        particleCount: 2,
+        angle: 60,
+        spread: 55,
+        startVelocity: 60,
+        origin: { x: 0, y: 0.5 },
+        colors: colors,
+      });
+      confetti({
+        particleCount: 2,
+        angle: 120,
+        spread: 55,
+        startVelocity: 60,
+        origin: { x: 1, y: 0.5 },
+        colors: colors,
+      });
+
+      requestAnimationFrame(frame);
+    };
+
+    frame();
+  };
+
   const findBestMatch = (chroma, scales) => {
     let bestMatch = { index: 0, correlation: 0 };
     scales.forEach((scale, index) => {
@@ -390,36 +448,43 @@ const KeyDetector = () => {
         />
       </div>
       <Background>
-        <div className="fixed inset-0 z-50 m-auto flex h-screen w-full items-center justify-center gap-5 text-white">
-          <div className="m-36 flex cursor-pointer rounded-full border-4 border-[#D5DAF3] bg-[#D5DAF3] p-10 dark:border-white dark:bg-white/5">
-            <button onClick={() => document.getElementById("importSong").click()}>
-              <FileDown size={100} color="#0A132D" strokeWidth={1.5} />
-            </button>
-          </div>
-          <div className="flex h-2/4 w-[420px] flex-col items-center justify-center gap-20 rounded-xl bg-[#0A132D] dark:border-4 dark:border-white">
-            {songName ? (
-              <div>
-                {!key && <FrequencyVisualizer />}
-                <p className="mt-15 text-white">
-                  {" "}
-                  {songName.split(".").slice(0, -1).join(".")}
-                </p>
-                {!key && (
-                  <>
-                    <h2>{note}</h2>
-                    <h3>Fréquence: {frequency.toFixed(2)} Hz</h3>
-                  </>
-                )}
-                {key && (
-                  <p className="mt-15 text-white">Tonalité détectée : {key}</p>
-                )}
-                {error && <p style={{ color: "red" }}>{error}</p>}
-              </div>
-            ) : (
-              <p className="mt-15 text-white"> ici le titre</p>
-            )}
+        <div className="fixed inset-0 z-50 flex flex-col flex-wrap items-center justify-center w-full h-screen gap-5 m-auto text-white">
+          <div className=' backdrop-blur-2xl bg-white/10 rounded-xl md:flex-row md:pt-0 flex flex-col items-center justify-center gap-5 pt-4'>
+
+            <div className="md:m-20 flex p-4 cursor-pointer rounded-full border-4 border-[#D5DAF3] bg-[#D5DAF3]">
+              <button onClick={() => document.getElementById("importSong").click()}>
+                <FileDown size={60} color="#0A132D" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="p-4 flex h-full w-screen max-w-[420px] min-h-[200px] flex-col items-center justify-center gap-20 rounded-b-xl md:rounded-r-xl md:rounded-b-none bg-[#0A132D] dark:border-4 dark:border-white">
+
+              {songName ? (
+                <div>
+                  {!key && <FrequencyVisualizer />}
+                  <p className="mt-15 text-xl text-white">
+                    {songName.split(".").slice(0, -1).join(".")}
+                  </p>
+                  {!key && (
+                    <div className="flex w-full gap-4">
+                      <h3>Fréquence: {frequency.toFixed(2)} Hz</h3>
+                      <h2>{note}</h2>
+                    </div>
+                  )}
+                  {key && (
+                    <p className="mt-15 text-xl text-white">Tonalité détectée : {key}</p>
+                  )}
+                  {error && <p style={{ color: "red" }}>{error}</p>}
+                </div>
+              ) : (
+                <p className="mt-15 text-white"> ici le titre</p>
+              )}
+            </div>
           </div>
         </div>
+        <Confetti
+          ref={confettiRef}
+          className="size-full absolute top-0 left-0 z-0"
+        />
       </Background>
     </>
   );

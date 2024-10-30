@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { LiveAudioVisualizer } from 'react-audio-visualize';
 
-export const FrequencyVisualizer = () => {
+export const FrequencyVisualizerChanter = () => {
   const [mediaRecorder, setMediaRecorder] = useState(null);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export const FrequencyVisualizer = () => {
       <LiveAudioVisualizer
         mediaRecorder={mediaRecorder}
         width={400}
-        height={100}
+        height={200}
         barWidth={2}
         gap={2}
         barColor={'#fff'}

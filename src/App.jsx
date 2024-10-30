@@ -86,10 +86,6 @@ function App() {
                 <div className="bg-white dark:bg-[#C7CFE9] h-[2px] w-0 group-hover:w-full transition-all duration-500"></div>
               </Link>
 
-              <Link className="font-bold font-raleway py-3 ps-px sm:px-3 md:py-4 text-sm   text-white hover:text-[#C7CFE9]   group p-2 px-4" to="/aide">
-                Aide
-                <div className="bg-white dark:bg-[#C7CFE9] h-[2px] w-0 group-hover:w-full transition-all duration-500"></div>
-              </Link>
             </div>
           </div>
         </nav>

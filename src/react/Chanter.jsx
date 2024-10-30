@@ -1,156 +1,198 @@
-import logo from "../assets/logo.png";
-import logodark from "../assets/logodark.png";
-import {
-  CircleStop,
-  Headphones,
-  Import,
-  Mic,
-  RotateCw,
-  Trash2,
-} from "lucide-react";
-import ispm from "../assets/ispm.png";
-import { Link } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+
 import { Background } from "../components/Background";
-
+import { FrequencyVisualizerChanter } from "../components/VisualizerChanter";
+import React, { useEffect, useState } from "react";
+import { cn } from "./lib/cn";
 export default function Chanter({ onButtonClick }) {
-  const [listeAudio, setListeAudio] = useState([]);
-  const [titre, setTitre] = useState("");
-  const [showPret, setPret] = useState(true);
-  const [recording, setRecording] = useState(false);
-  const [audioURL, setAudioURL] = useState("");
-  const mediaRecorder = useRef(null);
-  const audioChunks = useRef([]);
-  const [darkMode, setDarkMode] = useState(false);
-  const [time, setTime] = useState(0);
-  const [isActive, setIsActive] = useState(false);
-  const [isPaused, setIsPaused] = useState(true);
-
-  // le mandefa chronomètre
+  const [note, setNote] = useState("");
+  const [frequency, setFrequency] = useState(0);
 
   useEffect(() => {
-    let interval = null;
-    if (isActive && !isPaused) {
-      interval = setInterval(() => {
-        setTime((prevTime) => prevTime + 1);
-      }, 1000);
-    } else {
-      clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [isActive, isPaused]);
+    const audioContext = new (window.AudioContext ||
+      window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
 
-  const handleStart = () => {
-    setIsActive(true);
-    setIsPaused(false);
-  };
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        const microphone = audioContext.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+        analyser.fftSize = 4096; // Augmentez la taille de l'FFT
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
 
-  const handlePause = () => {
-    setIsPaused(!isPaused);
-  };
+        const getFrequencyData = () => {
+          analyser.getByteFrequencyData(dataArray);
+          const detectedFrequency = findPitch(dataArray);
+          setFrequency(detectedFrequency);
+          const detectedNote = frequencyToNote(detectedFrequency);
+          setNote(detectedNote);
+          requestAnimationFrame(getFrequencyData);
+        };
 
-  const handleReset = () => {
-    setIsActive(false);
-    setTime(0);
-  };
+        getFrequencyData();
+      })
+      .catch((err) => console.error("Erreur d'accès au microphone:", err));
 
-  const formatTime = () => {
-    const getSeconds = `0${time % 60}`.slice(-2);
-    const minutes = `${Math.floor(time / 60)}`;
-    const getMinutes = `0${minutes % 60}`.slice(-2);
-    const getHours = `0${Math.floor(time / 3600)}`.slice(-2);
+    const findPitch = (dataArray) => {
+      let maxIndex = 0;
+      let maxValue = -1;
 
-    return `${getHours} : ${getMinutes} : ${getSeconds}`;
-  };
-  //atreto
+      for (let i = 0; i < dataArray.length; i++) {
+        if (dataArray[i] > maxValue) {
+          maxValue = dataArray[i];
+          maxIndex = i;
+        }
+      }
 
-  //manao dark mode sy light mode
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
+      // Convertir l'index en fréquence
+      const nyquist = audioContext.sampleRate / 2;
+      const frequency = (maxIndex / dataArray.length) * nyquist;
 
-  const commonProps = {
-    color: darkMode ? "white" : "#0A132D",
-  };
+      // Affichez la fréquence brute pour le débogage
 
-  const startRecording = async () => {
-    setPret(false);
-    setAudioURL("");
-    setRecording(true);
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder.current = new MediaRecorder(stream);
-    mediaRecorder.current.ondataavailable = (event) => {
-      audioChunks.current.push(event.data);
+      // On ignore les fréquences en dessous d'un certain seuil
+      if (frequency < 100) return 0; // Seuil pour éviter les bruits de fond
+
+      return frequency;
     };
 
-    mediaRecorder.current.onstop = () => {
-      const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
-      const url = URL.createObjectURL(audioBlob);
-      setAudioURL(url);
-      audioChunks.current = [];
+    const frequencyToNote = (frequency) => {
+      const noteFrequencies = {
+        // Octave 0
+
+
+        // Octave 1
+        Do0: 32.7,
+        "Do#0": 34.65,
+        Re0: 36.71,
+        "Re#0": 38.89,
+        Mi0: 41.2,
+        Fa0: 43.65,
+        "Fa#0": 46.25,
+        Sol0: 49.0,
+        "Sol#0": 51.91,
+        La0: 55.0,
+        "La#0": 58.27,
+        Si0: 61.74,
+
+        // Octave 2
+        Do1: 65.41,
+        "Do#1": 69.3,
+        Re1: 73.42,
+        "Re#1": 77.78,
+        Mi1: 82.41,
+        Fa1: 87.31,
+        "Fa#1": 92.5,
+        Sol1: 98.0,
+        "Sol#1": 103.83,
+        La1: 110.0,
+        "La#1": 116.54,
+        Si1: 123.47,
+
+        // Octave 3
+        Do2: 130.81,
+        "Do#2": 138.59,
+        Re2: 146.83,
+        "Re#2": 155.56,
+        Mi2: 164.81,
+        Fa2: 174.61,
+        "Fa#2": 185.0,
+        Sol2: 196.0,
+        "Sol#2": 207.65,
+        La2: 220.0,
+        "La#2": 233.08,
+        Si2: 246.94,
+
+        // Octave 4
+        Do3: 261.63,
+        "Do#3": 277.18,
+        Re3: 293.66,
+        "Re#3": 311.13,
+        Mi3: 329.63,
+        Fa3: 349.23,
+        "Fa#3": 369.99,
+        Sol3: 392.0,
+        "Sol#3": 415.3,
+        La3: 440.0,
+        "La#3": 466.16,
+        Si3: 493.88,
+
+        // Octave 5
+        Do4: 523.25,
+        "Do#4": 554.37,
+        Re4: 587.33,
+        "Re#4": 622.25,
+        Mi4: 659.25,
+        Fa4: 698.46,
+        "Fa#4": 739.99,
+        Sol4: 783.99,
+        "Sol#4": 830.61,
+        La4: 880.0,
+        "La#4": 932.33,
+        Si4: 987.77,
+
+        // Octave 6
+        Do5: 1046.5,
+        "Do#5": 1108.73,
+        Re5: 1174.66,
+        "Re#5": 1244.51,
+        Mi5: 1318.51,
+        Fa5: 1396.91,
+        "Fa#5": 1479.98,
+        Sol5: 1567.98,
+        "Sol#5": 1661.22,
+        La5: 1760.0,
+        "La#5": 1864.66,
+        Si5: 1975.53,
+
+        // Octave 7
+        Do6: 2093.0,
+        "Do#6": 2217.46,
+        Re6: 2349.32,
+        "Re#6": 2489.02,
+        Mi6: 2637.02,
+        Fa6: 2793.83,
+        "Fa#6": 2959.96,
+        Sol6: 3135.96,
+        "Sol#6": 3322.44,
+        La6: 3520.0,
+        "La#6": 3729.31,
+        Si6: 3951.07,
+
+        // Octave 8
+        Do7: 4186.01,
+      };
+
+      let closestNote = "";
+      let closestDistance = Infinity;
+
+      for (const [note, noteFreq] of Object.entries(noteFrequencies)) {
+        const distance = Math.abs(frequency - noteFreq);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestNote = note;
+        }
+      }
+
+      return closestNote || "Aucune note détectée";
     };
 
-    mediaRecorder.current.start();
-  };
-
-  const stopRecording = () => {
-    setRecording(false);
-    mediaRecorder.current.stop();
-  };
-
-  const enregistrer = () => {
-    setListeAudio((prevListeAudio) => [
-      ...prevListeAudio,
-      {
-        titre: titre,
-        audio: audioURL,
-      },
-    ]);
-    setPret(true);
-    setAudioURL("");
-    setTitre("");
-    console.log("listeAudio ", listeAudio);
-  };
+    // Nettoyage à la désinstallation du composant
+    return () => {
+      audioContext.close();
+    };
+  }, []);
 
   return (
     // logo sy Menu
     <Background>
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center w-full h-screen gap-5 m-auto text-white">
-        <div className="backdrop-blur-2xl bg-white/10 rounded-xl flex flex-col items-center justify-center gap-5 p-10 m-auto overflow-hidden shadow">
-          <div className="p-10 flex bg-[#D5DAF3] dark:bg-white/5 rounded-full border-[#D5DAF3] dark:border-white border-4 mb-10">
-            <Mic size={100} strokeWidth={1.5} color="white" />
-          </div>
-
-          <div className="mb-4 font-mono text-3xl text-gray-700">
-            {formatTime()}
-          </div>
-
-          {showPret && (
-            <button onClick={() => { startRecording(); handleStart(); }} className=" font-medium dark:bg-transparent bg-[#D5DAF3] h-16 w-48  rounded-full border-4 border-[#D5DAF3] dark:text-white text-xl dark:border-white text-[#0A132D] animate-bounce focus:animate-none hover:animate-none">
-              Prêt
-            </button>
-          )}
-
-          <div>
-            {audioURL && (
-              <>
-                <input
-                  placeholder="titre"
-                  type="text"
-                  className="rounded-xl text-slate-900 placeholder:text-slate-600 focus:outline-none sm:text-sm sm:leading-6 block w-full py-4 pl-4 pr-12 text-base bg-white appearance-none"
-                  onChange={(e) => setTitre(e.target.value)}
-                />
-                <audio src={audioURL} />
-              </>
-            )}
-          </div>
-
-          <div className="flex justify-center gap-40 m-4 text-white">
-            <Import size={40}  {...commonProps} onClick={enregistrer} className="text-white cursor-pointer" />
-            <RotateCw size={40}  {...commonProps} className=" text-white cursor-pointer" onClick={() => { startRecording(); handleReset(); }} />
-            <Headphones size={40}  {...commonProps} className="text-white cursor-pointer" />
-            <CircleStop size={40}  {...commonProps} onClick={() => { stopRecording(); handlePause(); }} className="text-white cursor-pointer" />
-            <Trash2 size={40}  {...commonProps} className="text-white cursor-pointer" onClick={() => { setPret(true); setAudioURL(""); }} />
+        <div className="backdrop-blur-2xl bg-white/10 rounded-xl flex flex-col items-center justify-center gap-5 p-10 m-auto overflow-hidden shadow w-xl max-w-[calc(100vw-2rem)]">
+          <FrequencyVisualizerChanter />
+          <div className={cn('flex justify-between w-full text-xl opacity-1 transition-opacity')}>
+            <p>{note}</p>
+            <p>Fréquence: {frequency.toFixed(2)} Hz</p>
           </div>
         </div>
 
